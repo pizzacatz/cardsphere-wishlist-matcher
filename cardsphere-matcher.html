@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTG Wishlist Matcher</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            /* Dark Mode Variables (Default) */
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #bb86fc;
+            --accent-hover: #9965f4;
+            --border-color: #333;
+            --success-color: #03dac6;
+            --input-bg: #2d2d2d;
+        }
+
+        body.light-mode {
+            /* Light Mode Variables */
+            --bg-color: #f5f5f5;
+            --card-bg: #ffffff;
+            --text-color: #121212;
+            --accent-color: #6200ee;
+            --accent-hover: #3700b3;
+            --border-color: #ddd;
+            --success-color: #018786;
+            --input-bg: #f0f0f0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            transition: background-color 0.3s, color 0.3s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 600px;
+            border: 1px solid var(--border-color);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+        }
+
+        h1 { margin: 0; font-size: 1.5rem; color: var(--accent-color); }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px; width: 16px;
+            left: 4px; bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider { background-color: var(--accent-color); }
+        input:checked + .slider:before { transform: translateX(26px); }
+
+        .section { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-color);
+            cursor: pointer;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            background: var(--input-bg);
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        .radio-option { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+        button.primary-btn {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.1s, background-color 0.2s;
+        }
+
+        button.primary-btn:hover { background-color: var(--accent-hover); transform: translateY(-1px); }
+        button.primary-btn:active { transform: translateY(1px); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #status {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 6px;
+            display: none;
+            text-align: center;
+        }
+        .success { background-color: rgba(3, 218, 198, 0.2); color: var(--success-color); border: 1px solid var(--success-color); }
+        .error { background-color: rgba(255, 82, 82, 0.2); color: #ff5252; border: 1px solid #ff5252; }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>MTG Matcher</h1>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 0.8rem;">
+            <span>Dark Mode</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="themeToggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+    </header>
+
+    <div class="section">
+        <label for="wishlistFile">1. Wishlist CSV</label>
+        <input type="file" id="wishlistFile" accept=".csv">
+    </div>
+
+    <div class="section">
+        <label for="collectionFile">2. Collection CSV</label>
+        <input type="file" id="collectionFile" accept=".csv">
+    </div>
+
+    <div class="section">
+        <label>3. Match Logic</label>
+        <div class="radio-group">
+            <label class="radio-option">
+                <input type="radio" name="matchMode" value="exact" checked>
+                Exact Version (ID + Foil)
+            </label>
+            <label class="radio-option">
+                <input type="radio" name="matchMode" value="any">
+                Any Version (Name)
+            </label>
+        </div>
+    </div>
+
+    <button id="processBtn" class="primary-btn">Match Cards</button>
+
+    <div id="status"></div>
+</div>
+
+<script>
+    // Theme Toggling
+    const themeToggle = document.getElementById('themeToggle');
+    themeToggle.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            document.body.classList.remove('light-mode');
+        } else {
+            document.body.classList.add('light-mode');
+        }
+    });
+
+    // Helper: Normalize strings for "Any Version" matching
+    const normalize = (str) => {
+        if (!str) return '';
+        return str.toLowerCase().replace(/[^\w\s]/g, '').trim();
+    };
+
+    document.getElementById('processBtn').addEventListener('click', () => {
+        const wishlistInput = document.getElementById('wishlistFile');
+        const collectionInput = document.getElementById('collectionFile');
+        const matchMode = document.querySelector('input[name="matchMode"]:checked').value;
+
+        if (!wishlistInput.files.length || !collectionInput.files.length) {
+            showStatus("Please upload both CSV files.", "error");
+            return;
+        }
+
+        showStatus("Processing...", "success");
+
+        // Parse Wishlist First
+        Papa.parse(wishlistInput.files[0], {
+            header: true,
+            skipEmptyLines: true,
+            complete: function(wishResults) {
+                const wishlistData = wishResults.data;
+                const wishColumns = wishResults.meta.fields;
+                
+                let wishSet = new Set();
+                let matchColumn = "";
+                let finishColumn = "";
+
+                // --- BUILD WISHLIST SET ---
+                if (matchMode === 'exact') {
+                    // Look for 'Scryfall IDs'
+                    matchColumn = wishColumns.find(c => c.toLowerCase().includes('scryfall') && c.toLowerCase().includes('id'));
+                    // Look for 'Finishes' column
+                    finishColumn = wishColumns.find(c => c.toLowerCase().includes('finish'));
+
+                    if (!matchColumn) { showStatus("Error: Could not find 'Scryfall IDs' in Wishlist.", "error"); return; }
+                    
+                    wishlistData.forEach(row => {
+                        const id = row[matchColumn] ? row[matchColumn].trim() : "";
+                        // If Finishes column exists, use it; otherwise default to empty string (matches broadly)
+                        const finish = (finishColumn && row[finishColumn]) ? row[finishColumn].trim() : "";
+                        
+                        if (id) {
+                            // Key format: "UUID|Finish" (e.g., "abc-123|N" or "abc-123|F")
+                            wishSet.add(`${id}|${finish}`);
+                        }
+                    });
+
+                } else {
+                    // Match by Name (Includes all foils automatically)
+                    matchColumn = wishColumns.find(c => c.toLowerCase() === 'name');
+                    if (!matchColumn) { showStatus("Error: Could not find 'Name' column in Wishlist.", "error"); return; }
+
+                    wishlistData.forEach(row => {
+                        if (row[matchColumn]) wishSet.add(normalize(row[matchColumn]));
+                    });
+                }
+
+                // --- PARSE COLLECTION ---
+                Papa.parse(collectionInput.files[0], {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(collResults) {
+                        let collectionData = collResults.data;
+                        const collColumns = collResults.meta.fields;
+
+                        let collMatchCol = "";
+                        let collFoilCol = "";
+                        
+                        if (matchMode === 'exact') {
+                            collMatchCol = collColumns.find(c => c.toLowerCase().includes('scryfall') && c.toLowerCase().includes('id'));
+                            collFoilCol = collColumns.find(c => c.toLowerCase() === 'foil'); // Usually just 'Foil'
+                        } else {
+                            collMatchCol = collColumns.find(c => c.toLowerCase() === 'name');
+                        }
+
+                        if (!collMatchCol) {
+                            showStatus(`Error: Could not find matching column in Collection for '${matchMode}' mode.`, "error");
+                            return;
+                        }
+
+                        let matchCount = 0;
+
+                        // --- CHECK MATCHES ---
+                        collectionData = collectionData.map(row => {
+                            let isMatch = false;
+                            const val = row[collMatchCol];
+
+                            if (matchMode === 'exact') {
+                                // Reconstruct the key: ID + Foil Status
+                                const id = val ? val.trim() : "";
+                                const foil = (collFoilCol && row[collFoilCol]) ? row[collFoilCol].trim() : "";
+                                
+                                // Check if this specific combo exists in wishlist
+                                if (id && wishSet.has(`${id}|${foil}`)) {
+                                    isMatch = true;
+                                }
+                            } else {
+                                // Simple name match (ignores foil column, so it catches everything)
+                                if (val && wishSet.has(normalize(val))) isMatch = true;
+                            }
+
+                            if (isMatch) {
+                                row['Want'] = 'Yes';
+                                matchCount++;
+                            } else {
+                                row['Want'] = ''; // Overwrite or clear previous data
+                            }
+                            return row;
+                        });
+
+                        // --- OUTPUT ---
+                        const csv = Papa.unparse(collectionData);
+                        downloadCSV(csv, "updated_collection.csv");
+                        showStatus(`Success! Found ${matchCount} matches. Download started.`, "success");
+                    }
+                });
+            }
+        });
+    });
+
+    function showStatus(msg, type) {
+        const el = document.getElementById('status');
+        el.style.display = 'block';
+        el.textContent = msg;
+        el.className = type;
+    }
+
+    function downloadCSV(csvString, fileName) {
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", fileName);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+
+</body>
+</html>
